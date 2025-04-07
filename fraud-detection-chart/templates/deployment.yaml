@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraud-detection-spark
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fraud-detection-spark
+  template:
+    metadata:
+      labels:
+        app: fraud-detection-spark
+    spec:
+      securityContext:
+        runAsUser: 1001
+        fsGroup: 1001
+      containers:
+      - name: spark-job
+        image: hassaanyousaf/fraud-detection-spark:latest
+        imagePullPolicy: IfNotPresent
+        command:
+          - "/bin/bash"
+          - "-c"
+          - |
+            /opt/bitnami/spark/bin/spark-submit \
+              --master k8s://https://kubernetes.default.svc:6443 \
+              --name fraud-detection-streaming \
+              --deploy-mode cluster \
+              --conf spark.kubernetes.container.image=hassaanyousaf/fraud-detection-spark:latest \
+              --conf spark.kubernetes.namespace=default \
+              --conf spark.executor.instances=2 \
+              --conf spark.kubernetes.file.upload.path=/tmp/app \
+              --conf spark.jars.ivy=/tmp/.ivy2 \
+              --conf spark.hadoop.security.authentication=simple \
+              --conf spark.hadoop.user.name=spark \
+              --conf spark.driverEnv.HADOOP_USER_NAME=spark \
+              --conf spark.executorEnv.HADOOP_USER_NAME=spark \
+              --conf spark.driver.extraJavaOptions="-Djava.security.krb5.conf=/dev/null" \
+              --conf spark.executor.extraJavaOptions="-Djava.security.krb5.conf=/dev/null" \
+              --conf spark.files.overwrite=true \
+              file:///app/fraud_detection_streaming.py
+        env:
+          - name: KAFKA_BOOTSTRAP_SERVERS
+            value: "kafka-service:9092"
+          - name: HADOOP_USER_NAME
+            value: "spark"

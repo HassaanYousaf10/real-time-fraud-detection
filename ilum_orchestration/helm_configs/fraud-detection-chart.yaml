@@ -1,0 +1,55 @@
+apiVersion: v2
+name: fraud-detection
+description: A Helm chart for deploying the real-time fraud detection Spark job using Ilum orchestration.
+type: application
+version: 0.1.0
+appVersion: "1.0"
+---
+# Deployment Template
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraud-detection-spark
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fraud-detection-spark
+  template:
+    metadata:
+      labels:
+        app: fraud-detection-spark
+    spec:
+      containers:
+      - name: spark-job
+        image: hassaanyousaf/fraud-detection-spark:latest
+        imagePullPolicy: IfNotPresent
+        command:
+          - "/bin/bash"
+          - "-c"
+          - |
+            # Execute spark-submit to run your streaming job
+            /opt/bitnami/spark/bin/spark-submit \
+              --master k8s://https://kubernetes.default.svc:6443 \
+              --name fraud-detection-streaming \
+              --deploy-mode cluster \
+              --conf spark.kubernetes.container.image=hassaanyousaf/fraud-detection-spark:latest \
+              --conf spark.kubernetes.namespace=default \
+              --conf spark.executor.instances=2 \
+              /app/fraud_detection_streaming.py
+        env:
+          - name: KAFKA_BOOTSTRAP_SERVERS
+            value: "kafka-service:9092"  # Adjust if necessary
+---
+# (Optional) Service Template
+apiVersion: v1
+kind: Service
+metadata:
+  name: fraud-detection-spark-service
+spec:
+  selector:
+    app: fraud-detection-spark
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080

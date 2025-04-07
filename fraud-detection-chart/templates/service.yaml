@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fraud-detection-spark-service
+spec:
+  selector:
+    app: fraud-detection-spark
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080

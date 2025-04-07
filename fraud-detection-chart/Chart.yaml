@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fraud-detection
+description: A Helm chart for deploying the real-time fraud detection Spark job using Ilum orchestration.
+type: application
+version: 0.1.0
+appVersion: "1.0"
