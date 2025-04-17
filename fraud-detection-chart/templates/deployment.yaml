@@ -12,6 +12,7 @@ spec:
       labels:
         app: fraud-detection-spark
     spec:
+      serviceAccountName: spark
       securityContext:
         runAsUser: 1001
         fsGroup: 1001
@@ -22,7 +23,7 @@ spec:
         command:
           - "/bin/bash"
           - "-c"
-          - |
+          - >
             /opt/bitnami/spark/bin/spark-submit \
               --master k8s://https://kubernetes.default.svc:6443 \
               --name fraud-detection-streaming \
@@ -36,10 +37,14 @@ spec:
               --conf spark.hadoop.user.name=spark \
               --conf spark.driverEnv.HADOOP_USER_NAME=spark \
               --conf spark.executorEnv.HADOOP_USER_NAME=spark \
-              --conf spark.driver.extraJavaOptions="-Djava.security.krb5.conf=/dev/null" \
-              --conf spark.executor.extraJavaOptions="-Djava.security.krb5.conf=/dev/null" \
+              --conf spark.driver.extraJavaOptions="-Djava.security.krb5.conf=/dev/null -DHADOOP_USER_NAME=spark -Duser.name=spark" \
+              --conf spark.executor.extraJavaOptions="-Djava.security.krb5.conf=/dev/null -DHADOOP_USER_NAME=spark -Duser.name=spark" \
               --conf spark.files.overwrite=true \
-              file:///app/fraud_detection_streaming.py
+              --conf spark.kubernetes.submission.timeout=12000s \
+              --files /app/fraud_detection_streaming.py \
+              fraud_detection_streaming.py
+
+
         env:
           - name: KAFKA_BOOTSTRAP_SERVERS
             value: "kafka-service:9092"
