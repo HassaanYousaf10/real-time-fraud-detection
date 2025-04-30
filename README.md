@@ -1,145 +1,170 @@
-Real-Time Fraud Detection – Spark + Kafka + Helm (Ilum-Compatible)
-A streamlined Spark Structured Streaming pipeline that ingests simulated transaction data from Kafka, filters fraudulent transactions (is_fraud = 1), and runs on Kubernetes via Helm. This design is Ilum-compatible since Ilum uses Helm-based orchestration under the hood.
+# Real-Time Fraud Detection – Spark + Kafka + Helm (Ilum-Compatible)
 
-Architecture Overview
-scss
-Copy
-Edit
-[ Transaction Producer ] --> [ Kafka Broker ] --> [ Spark Streaming Job ]
-         (Python)                (Docker)            (Docker + Helm/K8s)
-Producer sends random transactions to Kafka (fraud_transactions topic).
+Built on top of Apache Spark, which powers big data solutions.
 
-Spark reads, filters is_fraud == 1, and logs them.
+**Real-Time Fraud Detection** is a framework that ingests continuous transaction data, filters out fraudulent events (`is_fraud = 1`), and deploys the solution on Kubernetes via Helm. This architecture is Ilum-compatible because it leverages a Helm-based deployment strategy similar to that used by Ilum.
 
-Deployment is managed by Docker (image) + Helm (charts) on Kubernetes.
+---
 
-Repository Structure
-perl
-Copy
-Edit
+## How Does It Work?
+
+### Transaction Producer
+
+A Python script continuously generates synthetic transactions (each including fields such as `card_number`, `amount`, `timestamp`, and `is_fraud`) and publishes them to a Kafka topic (`fraud_transactions`).
+
+### Spark Structured Streaming
+
+A Spark job reads from Kafka, filters records where `is_fraud == 1`, and logs or outputs these fraudulent transactions in real time.
+
+### Helm + Kubernetes
+
+The containerized Spark job is deployed with a Helm chart on Kubernetes. This declarative approach is fully compatible with Ilum’s orchestration model.
+
+---
+
+## Repository Structure
+
+```
 real-time-fraud-detection/
-├─ data_generator/
-│   └─ transaction_producer.py       # Synthetic data → Kafka
-├─ spark_jobs/
-│   └─ fraud_detection_streaming.py  # Spark Structured Streaming filter
-├─ fraud-detection-chart/
-│   ├─ Chart.yaml
-│   └─ templates/
-│       └─ deployment.yaml           # Helm-defined K8s Deployment
-├─ Dockerfile                        # Spark job container
-├─ docker-compose.yml                # Kafka local setup
-└─ README.md
-1) Local Kafka Setup
-Option A: Docker Compose
+├── data_generator/
+│   └── transaction_producer.py       # Python script simulating transactions
+├── spark_jobs/
+│   └── fraud_detection_streaming.py  # Spark Structured Streaming logic
+├── fraud-detection-chart/
+│   ├── Chart.yaml                    # Helm chart metadata
+│   └── templates/
+│       └── deployment.yaml           # Kubernetes Deployment (Helm)
+├── Dockerfile                        # Builds the Spark job container
+├── docker-compose.yml                # Local Kafka/Zookeeper setup
+└── README.md                         # This file
+```
 
-bash
-Copy
-Edit
+---
+
+## 1) Local Kafka Setup
+
+### Option A: Docker Compose
+
+```bash
 docker-compose up -d
-Kafka broker on localhost:9092
+```
 
-Zookeeper on localhost:2181
+Kafka broker will be available at `localhost:9092`  
+Zookeeper at `localhost:2181`
 
-Option B: External / Existing Kafka
-Update your producer & Spark job with the correct bootstrap.servers.
+(Alternatively, connect to an external Kafka cluster and update configurations accordingly.)
 
-2) Docker Build & Push
-bash
-Copy
-Edit
+---
+
+## 2) Docker Build & Push
+
+### Build the Docker image
+
+```bash
 docker build -t <DOCKER_USER>/fraud-detection-spark:latest .
-docker push <DOCKER_USER>/fraud-detection-spark:latest
-(Replace <DOCKER_USER> with your Docker Hub username.)
+```
 
-3) Helm (Ilum-Compatible) Deployment
-Package the Chart
-bash
-Copy
-Edit
+### Push the image
+
+Replace `<DOCKER_USER>` with your Docker Hub username:
+
+```bash
+docker push <DOCKER_USER>/fraud-detection-spark:latest
+```
+
+---
+
+## 3) Helm (Ilum-Compatible) Deployment
+
+### Package the Helm Chart
+
+```bash
 cd fraud-detection-chart
 helm package .
 cd ..
-Generates fraud-detection-0.1.0.tgz.
+```
 
-Deploy on Kubernetes
-bash
-Copy
-Edit
+This command generates a package (e.g., `fraud-detection-0.1.0.tgz`).
+
+### Deploy the Chart
+
+```bash
 helm upgrade --install fraud-detection ./fraud-detection-0.1.0.tgz
-Or:
+```
 
-bash
-Copy
-Edit
+Or apply the deployment YAML directly:
+
+```bash
 kubectl apply -f fraud-detection-chart/templates/deployment.yaml
-(If you prefer direct kubectl usage.)
+```
 
-4) Run the Transaction Producer
-bash
-Copy
-Edit
+---
+
+## 4) Run the Transaction Producer
+
+Navigate to the producer directory and run:
+
+```bash
 cd data_generator
 python transaction_producer.py
-Generates random transactions, publishes them to fraud_transactions topic.
+```
 
-5) Monitor Spark Streaming
-Identify the Spark driver pod:
+This script continuously sends synthetic transaction events (with some having `is_fraud = 1`) to the Kafka topic.
 
-bash
-Copy
-Edit
+---
+
+## 5) Monitor Spark Streaming
+
+### List the running pods
+
+```bash
 kubectl get pods
-Logs:
+```
 
-bash
-Copy
-Edit
-kubectl logs <driver-pod-name>
-Expected: Streaming logs indicating filtered fraud events:
+### Check the logs of the Spark driver pod
 
-yaml
-Copy
-Edit
+```bash
+kubectl logs <spark-driver-pod>
+```
+
+You should see log entries such as:
+
+```bash
 Uploading file: /app/fraud_detection_streaming.py ...
-Fraud transaction: ID=... is_fraud=1 ...
-Ilum Compatibility
-Helm Charts for orchestrating container images on Kubernetes.
+Fraud transaction detected => { ... "is_fraud": 1, ... }
+```
 
-Docker for packaging the Spark job.
+---
 
-Declarative approach (YAML) that Ilum can ingest.
+## Ilum Compatibility
 
-In a real Ilum environment, these same Helm charts are deployable via Ilum’s internal UI or CLI, ensuring production-grade scheduling of the Spark job.
+- Helm charts define the container image, environment, and orchestration in a declarative manner — precisely how Ilum orchestrates containerized Spark jobs.
+- Docker ensures the environment is fully reproducible.
+- This design is Ilum-compatible, making it a drop-in solution for environments that use Ilum for production deployment.
 
-Fraud Logic Snippet
-python
-Copy
-Edit
-# fraud_detection_streaming.py
+---
 
+## Fraud Logic Snippet
+
+Excerpt from `spark_jobs/fraud_detection_streaming.py`:
+
+```python
+# Filter fraudulent transactions
 fraud_df = df_parsed.filter(col("is_fraud") == 1)
+
+# Output to console (extendable with ML logic)
 fraud_df.writeStream \
-  .format("console") \
-  .start() \
-  .awaitTermination()
-Custom ML or advanced rules can replace the simple filter.
+    .format("console") \
+    .option("truncate", "false") \
+    .start() \
+    .awaitTermination()
+```
 
-Next Enhancements
-Persist fraud alerts to a database (e.g., Cassandra, Postgres).
+---
 
-Dashboards (Grafana, Kibana) for real-time metrics.
+## Improvements & Future Enhancements
 
-CI/CD with GitHub Actions, container scanning, etc.
-
-Spark ML to classify fraud with advanced models.
-
-Acknowledgments
-Docker & Helm to simplify container creation and K8s deployments.
-
-Apache Kafka for streaming backbone.
-
-Apache Spark for structured streaming logic.
-
-Bitnami base images for Spark containers.
-
-This design addresses the typical Ilum "Helm-based" orchestration need.
+- Persist fraudulent alerts to a database (e.g., PostgreSQL) or cloud storage (e.g., Amazon S3)
+- Integrate real-time dashboards (Grafana, Prometheus)
+- Implement CI/CD pipelines (GitHub Actions) for automated Docker builds and Helm deployments
+- Enhance detection using Spark MLlib for advanced anomaly detection
